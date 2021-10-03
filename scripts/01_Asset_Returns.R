@@ -3,6 +3,7 @@
 #' author: "Juan Malaver"
 #' date: "October 3, 2021"
 #' output: github_document
+#' always_allow_html: true
 #' ---
 #'
 #' This script collects daily price data for 5 assets and coverts to monthly
@@ -10,6 +11,7 @@
 ## loading libraries
 library(tidyverse)
 library(tidyquant)
+library(timetk)
 library(highcharter)
 
 ## storing tickers in vector
