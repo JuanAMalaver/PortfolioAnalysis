@@ -7,6 +7,11 @@
 #'
 #' This script collects daily price data for 5 assets and coverts to monthly
 #' returns.
+## loading libraries
+library(tidyverse)
+library(tidyquant)
+library(highcharter)
+
 ## storing tickers in vector
 symbols <- c("SPY", "XLF", "XLE", "XLK", "XLV")
 
