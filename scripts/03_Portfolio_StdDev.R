@@ -73,7 +73,22 @@ portfolio_groups <- portfolio_returns %>%
 hchart(portfolio_groups, "scatter", hcaes(x = date, y = Ra, group = group)) %>%
   hc_title(text = "Portfolio Monthly Return Anomalies") %>%
   hc_xAxis(title = list(text = "")) %>%
-  hc_yAxis(title = list(text = "")) %>%
+  hc_yAxis(title = list(text = ""),
+             plotLines = list(
+               list(
+                 dashStyle = "Dash",
+                 color = "#999999",
+                 width = 1.5,
+                 value = portfolio_mean$mean + portfolio_stdev$Stdev,
+                 zIndex = 1),
+                list(
+                 dashStyle = "Dash",
+                 color = "#999999",
+                 width = 1.5,
+                 value = portfolio_mean$mean - portfolio_stdev$Stdev,
+                 zIndex = 1)
+               )
+           ) %>%
   hc_add_theme(hc_theme_flat()) %>%
   hc_navigator(enabled = FALSE) %>%
   hc_scrollbar(enabled = FALSE) %>%
