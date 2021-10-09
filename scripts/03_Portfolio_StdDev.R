@@ -58,7 +58,8 @@ portfolio_stdev <- portfolio_returns %>%
 
 ## calculating portfolio mean returns
 portfolio_mean <- portfolio_returns %>%
-  summarise(mean = mean(Ra))
+  summarise(expected_return = mean(Ra)) %>%
+  mutate(symbol = "Portfolio")
 
 ## generating groups for above and below one standard deviation
 portfolio_groups <- portfolio_returns %>%
@@ -73,7 +74,8 @@ portfolio_groups <- portfolio_returns %>%
 colors <- tibble(
   symbol = append(symbols, "Portfolio"),
   hex = c("#434348", "#90ed7d", "#f7a35c", "#8085e9", "#f15c80", "#7cb5ec")
-)
+) %>%
+  arrange(symbol)
 
 ## binding rows
 stdev_combined <- portfolio_stdev %>%
@@ -81,6 +83,16 @@ stdev_combined <- portfolio_stdev %>%
   bind_rows(asset_stdev) %>%
   arrange(desc(Stdev)) %>%
   inner_join(colors)
+
+## calculating mean asset returns
+mean_returns <- asset_returns %>%
+  group_by(symbol) %>%
+  summarise(expected_return = mean(Ra)) %>%
+  bind_rows(portfolio_mean)
+
+## joining means and stdevs
+mean_stdev_combined <- stdev_combined %>%
+  inner_join(mean_returns, by = "symbol")
 
 ## visualizing portfolio returns
 #+ Monthly Portfolio Stdev
@@ -93,13 +105,13 @@ hchart(portfolio_groups, "scatter", hcaes(x = date, y = Ra, group = group)) %>%
                  dashStyle = "Dash",
                  color = "#999999",
                  width = 1.5,
-                 value = portfolio_mean$mean + portfolio_stdev$Stdev,
+                 value = portfolio_mean$expected_return + portfolio_stdev$Stdev,
                  zIndex = 1),
                 list(
                  dashStyle = "Dash",
                  color = "#999999",
                  width = 1.5,
-                 value = portfolio_mean$mean - portfolio_stdev$Stdev,
+                 value = portfolio_mean$expected_return - portfolio_stdev$Stdev,
                  zIndex = 1)
                )
            ) %>%
@@ -112,7 +124,7 @@ hchart(portfolio_groups, "scatter", hcaes(x = date, y = Ra, group = group)) %>%
 
 ## visualizing portfolio and asset standard deviations
 #+ Portfolio and Asset Stdev
-hchart(stdev_combined, "column", hcaes(x = symbol, y = Stdev, color = hex)) %>%
+hchart(stdev_combined, "bar", hcaes(x = symbol, y = Stdev, color = hex)) %>%
   hc_title(text = "Asset and Portfolio Standard Deviation Comparison") %>%
   hc_xAxis(title = list(text = "")) %>%
   hc_yAxis(title = list(text = "Monthly Return Standard Deviation")) %>%
@@ -122,3 +134,19 @@ hchart(stdev_combined, "column", hcaes(x = symbol, y = Stdev, color = hex)) %>%
   hc_exporting(enabled = TRUE) %>%
   hc_legend(enabled = FALSE) %>%
   hc_tooltip(pointFormat = "Stdev: {point.y}")
+
+## plotting mean returns against standard deviations
+#+ Expected Monthly Returns versus Risk
+hchart(mean_stdev_combined, "scatter", hcaes(x = Stdev,
+                                             y = expected_return,
+                                             color = hex,
+                                             group = symbol)) %>%
+  hc_title(text = "Expected Monthly Returns versus Risk") %>%
+  hc_xAxis(title = list(text = "Expected Monthly Returns")) %>%
+  hc_yAxis(title = list(text = "Monthly Return Standard Deviation")) %>%
+  hc_add_theme(hc_theme_flat()) %>%
+  hc_navigator(enabled = FALSE) %>%
+  hc_scrollbar(enabled = FALSE) %>%
+  hc_exporting(enabled = TRUE) %>%
+  hc_legend(enabled = TRUE) %>%
+  hc_colors(colors$hex)
