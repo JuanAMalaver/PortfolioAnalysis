@@ -68,8 +68,22 @@ portfolio_groups <- portfolio_returns %>%
                                "Below",
                                "Between")))
 
+
+## setting color palette
+colors <- tibble(
+  symbol = append(symbols, "Portfolio"),
+  hex = c("#434348", "#90ed7d", "#f7a35c", "#8085e9", "#f15c80", "#7cb5ec")
+)
+
+## binding rows
+stdev_combined <- portfolio_stdev %>%
+  mutate(symbol = "Portfolio") %>%
+  bind_rows(asset_stdev) %>%
+  arrange(desc(Stdev)) %>%
+  inner_join(colors)
+
 ## visualizing portfolio returns
-#+ Monthly Portfolio Returns
+#+ Monthly Portfolio Stdev
 hchart(portfolio_groups, "scatter", hcaes(x = date, y = Ra, group = group)) %>%
   hc_title(text = "Portfolio Monthly Return Anomalies") %>%
   hc_xAxis(title = list(text = "")) %>%
@@ -95,3 +109,16 @@ hchart(portfolio_groups, "scatter", hcaes(x = date, y = Ra, group = group)) %>%
   hc_exporting(enabled = TRUE) %>%
   hc_legend(enabled = FALSE) %>%
   hc_tooltip(pointFormat = "x: {point.x:%b \'%y} <br> y: {point.y}")
+
+## visualizing portfolio and asset standard deviations
+#+ Portfolio and Asset Stdev
+hchart(stdev_combined, "column", hcaes(x = symbol, y = Stdev, color = hex)) %>%
+  hc_title(text = "Asset and Portfolio Standard Deviation Comparison") %>%
+  hc_xAxis(title = list(text = "")) %>%
+  hc_yAxis(title = list(text = "Monthly Return Standard Deviation")) %>%
+  hc_add_theme(hc_theme_flat()) %>%
+  hc_navigator(enabled = FALSE) %>%
+  hc_scrollbar(enabled = FALSE) %>%
+  hc_exporting(enabled = TRUE) %>%
+  hc_legend(enabled = FALSE) %>%
+  hc_tooltip(pointFormat = "Stdev: {point.y}")
