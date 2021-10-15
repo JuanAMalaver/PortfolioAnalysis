@@ -63,11 +63,13 @@ portfolio_mean <- portfolio_returns %>%
 
 ## generating groups for above and below one standard deviation
 portfolio_groups <- portfolio_returns %>%
-  mutate(group = ifelse(Ra > (portfolio_mean$mean + portfolio_stdev$Stdev),
-                        "Above",
-                        ifelse(Ra < (portfolio_mean$mean - portfolio_stdev$Stdev),
-                               "Below",
-                               "Between")))
+  mutate(group = ifelse(Ra > (portfolio_mean$expected_return + portfolio_stdev$Stdev) | (Ra < (portfolio_mean$expected_return - portfolio_stdev$Stdev)),
+                        "Outlier",
+                        "Normal")) %>%
+  mutate(color = case_when(
+    group == "Outlier" ~ "#f45b5b",
+    group == "Normal" ~ "#7cb5ec"
+  ))
 
 
 ## setting color palette
@@ -94,9 +96,23 @@ mean_returns <- asset_returns %>%
 mean_stdev_combined <- stdev_combined %>%
   inner_join(mean_returns, by = "symbol")
 
+## setting rolling window
+window <- 24
+
+## rolling standard deviation
+portfolio_rolling_stdev <- portfolio_returns %>%
+  tq_mutate(
+    mutate_fun = rollapply,
+    width = window,
+    FUN = sd,
+    col_rename = "rolling_sd"
+  ) %>%
+  select(date, rolling_sd) %>%
+  drop_na()
+
 ## visualizing portfolio returns
 #+ Monthly Portfolio Stdev
-hchart(portfolio_groups, "scatter", hcaes(x = date, y = Ra, group = group)) %>%
+hchart(portfolio_groups, "scatter", hcaes(x = date, y = Ra, group = group, color = color)) %>%
   hc_title(text = "Portfolio Monthly Return Anomalies") %>%
   hc_xAxis(title = list(text = "")) %>%
   hc_yAxis(title = list(text = ""),
@@ -150,3 +166,18 @@ hchart(mean_stdev_combined, "scatter", hcaes(x = Stdev,
   hc_exporting(enabled = TRUE) %>%
   hc_legend(enabled = TRUE) %>%
   hc_colors(colors$hex)
+
+## plotting rolling standard deviation
+#+ Rolling Volatility
+highchart(type = "stock") %>%
+  hc_title(text = "24-Month Rolling Volatility") %>%
+  hc_add_series(portfolio_rolling_stdev %>% tk_xts(), color = "#7cb5ec") %>%
+  hc_add_theme(hc_theme_flat()) %>%
+  hc_yAxis(labels = list(format = "{value}%"),
+           opposite = FALSE) %>%
+  hc_navigator(enabled = FALSE) %>%
+  hc_scrollbar(enabled = FALSE) %>%
+  hc_exporting(enabled = TRUE) %>%
+  hc_legend(enabled = FALSE) %>%
+  hc_tooltip(pointFormat = "Standard Deviation: {point.y}")
+
