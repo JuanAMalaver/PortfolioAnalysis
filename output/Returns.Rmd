@@ -1,0 +1,207 @@
+---
+title: "Portfolio Analysis"
+runtime: shiny
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+---
+
+<style>
+ .section.sidebar {
+    overflow: hidden;
+ }
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# loading libraries
+library(tidyverse)
+library(highcharter)
+library(tidyquant)
+library(timetk)
+```
+
+
+Returns
+=====================================
+
+Inputs {.sidebar}
+-------------------------------------
+
+### Asset Parameters
+
+```{r sidebar, echo=FALSE}
+
+fluidRow(
+  column(6,
+  textInput("stock1", "Stock 1", "SPY")),
+  column(5,
+  numericInput("w1", "Portf. %", 40,
+               min = 1, max = 100))
+)
+
+fluidRow(
+  column(6,
+  textInput("stock2", "Stock 2", "XLF")),
+  column(5,
+  numericInput("w2", "Portf. %", 15,
+               min = 1, max = 100))
+)
+
+fluidRow(
+  column(6,
+  textInput("stock3", "Stock 3", "XLE")),
+  column(5,
+  numericInput("w3", "Portf. %", 15,
+               min = 1, max = 100))
+)
+
+fluidRow(
+  column(6,
+  textInput("stock4", "Stock 4", "XLK")),
+  column(5,
+  numericInput("w4", "Portf. %", 15,
+               min = 1, max = 100))
+)
+
+fluidRow(
+  column(6,
+  textInput("stock5", "Stock 5", "XLV")),
+  column(5,
+  numericInput("w5", "Portf. %", 15,
+               min = 1, max = 100))
+)
+
+fluidRow(
+  column(7,
+  dateInput("date",
+            "Starting Date",
+            "2016-01-01",
+            format = "yyyy-mm-dd"))
+)
+
+fluidRow(
+  column(7,
+  selectInput("rebalance", "Rebalance",
+              c("Yearly" = "yearly",
+                "Quarterly" = "quarterly",
+                "Monthly" = "monthly",
+                "Weekly" = "weekly"))
+  )
+)
+
+actionButton("go", "Submit")
+```
+
+
+```{r, include=FALSE}
+
+symbols <- eventReactive(input$go, {
+  
+  symbols <- c(input$stock1,
+             input$stock2,
+             input$stock3,
+             input$stock4,
+             input$stock5)
+  
+})
+
+asset_returns <- eventReactive(input$go, {
+  
+  symbols <- symbols()
+  
+  prices <- symbols %>%
+    tq_get(get = "stock.prices",
+           from = input$date)
+  
+  asset_returns <- prices %>%
+  group_by(symbol) %>%
+  tq_transmute(adjusted,
+               periodReturn,
+               period = input$rebalance,
+               type = "log",
+               col_rename = "returns")
+  
+})
+
+
+portfolio_returns <- eventReactive(input$go, {
+  
+  asset_returns <- asset_returns()
+  
+  wts <- c(input$w1/100,
+           input$w2/100,
+           input$w3/100,
+           input$w4/100,
+           input$w5/100)
+  
+  portfolio_returns <- asset_returns %>%
+    tq_portfolio(assets_col = symbol,
+                 returns_col = returns,
+                 weights = wts,
+                 col_rename = "returns")
+})
+```
+
+Row {.tabset}
+-------------------------------------
+   
+### Historical Returns
+
+```{r, echo=FALSE}
+renderHighchart({
+  
+  symbols <- symbols()
+  
+  asset_returns_xts <- asset_returns() %>%
+    pivot_wider(names_from = symbol, values_from = returns) %>%
+    tk_xts()
+  
+  portfolio_returns_xts <- portfolio_returns() %>%
+    tk_xts()
+  
+  highchart(type = "stock") %>%
+    hc_title(text = "Asset and Portfolio Returns") %>%
+    hc_add_series(portfolio_returns_xts$returns,
+                  name = "Rebalanced Portfolio",
+                  color = "#7cb5ec") %>%
+    hc_add_series(asset_returns_xts[, symbols[1]], name = symbols[1], color ="#434348") %>%
+    hc_add_series(asset_returns_xts[, symbols[2]], name = symbols[2], color = "#90ed7d") %>%
+    hc_add_series(asset_returns_xts[, symbols[3]], name = symbols[3], color = "#f7a35c") %>%
+    hc_add_series(asset_returns_xts[, symbols[4]], name = symbols[4], color = "#8085e9") %>%
+    hc_add_series(asset_returns_xts[, symbols[5]], name = symbols[5], color = "#f15c80") %>%
+    hc_add_theme(hc_theme_flat()) %>%
+    hc_navigator(enabled = FALSE) %>%
+    hc_scrollbar(enabled = FALSE) %>%
+    hc_exporting(enabled = TRUE) %>%
+    hc_legend(enabled = TRUE)
+})
+```   
+ 
+### Returns Distribution
+    
+```{r, echo=FALSE}
+renderHighchart({
+  
+  symbols <- symbols()
+  
+  asset_returns_xts <- asset_returns() %>%
+    pivot_wider(names_from = symbol, values_from = returns) %>%
+    tk_xts()
+  
+  portfolio_returns_xts <- portfolio_returns() %>%
+    tk_xts()
+
+  hchart(density(portfolio_returns_xts$returns), name = "Rebalanced Portfolio", color = "#7cb5ec") %>%
+    hc_add_series(density(asset_returns_xts[, symbols[1]]), name = symbols[1], color = "#434348") %>%
+    hc_add_series(density(asset_returns_xts[, symbols[2]]), name = symbols[2], color = "#90ed7d") %>%
+    hc_add_series(density(asset_returns_xts[, symbols[3]]), name = symbols[3], color = "#f7a35c") %>%
+    hc_add_series(density(asset_returns_xts[, symbols[4]]), name = symbols[4], color = "#8085e9") %>%
+    hc_add_series(density(asset_returns_xts[, symbols[5]]), name = symbols[5], color = "#f15c80") %>%
+    hc_title(text = "Asset and Portfolio Returns Distribution") %>%
+    hc_add_theme(hc_theme_flat()) %>%
+    hc_exporting(enabled = TRUE) %>%
+    hc_legend(enabled = TRUE)
+})
+```

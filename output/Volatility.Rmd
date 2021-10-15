@@ -1,0 +1,357 @@
+---
+title: "Portfolio Analysis"
+runtime: shiny
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+---
+
+<style>
+ .section.sidebar {
+    overflow: hidden;
+ }
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# loading libraries
+library(tidyverse)
+library(highcharter)
+library(tidyquant)
+library(timetk)
+```
+
+Volatility
+=====================================
+
+Inputs {.sidebar}
+-------------------------------------
+
+### Asset Parameters
+
+```{r sidebar, echo=FALSE}
+
+fluidRow(
+  column(6,
+  textInput("stock1", "Stock 1", "SPY")),
+  column(5,
+  numericInput("w1", "Portf. %", 40,
+               min = 1, max = 100))
+)
+
+fluidRow(
+  column(6,
+  textInput("stock2", "Stock 2", "XLF")),
+  column(5,
+  numericInput("w2", "Portf. %", 15,
+               min = 1, max = 100))
+)
+
+fluidRow(
+  column(6,
+  textInput("stock3", "Stock 3", "XLE")),
+  column(5,
+  numericInput("w3", "Portf. %", 15,
+               min = 1, max = 100))
+)
+
+fluidRow(
+  column(6,
+  textInput("stock4", "Stock 4", "XLK")),
+  column(5,
+  numericInput("w4", "Portf. %", 15,
+               min = 1, max = 100))
+)
+
+fluidRow(
+  column(6,
+  textInput("stock5", "Stock 5", "XLV")),
+  column(5,
+  numericInput("w5", "Portf. %", 15,
+               min = 1, max = 100))
+)
+
+fluidRow(
+  column(7,
+  dateInput("date",
+            "Starting Date",
+            "2016-01-01",
+            format = "yyyy-mm-dd"))
+)
+
+fluidRow(
+  column(5,
+  numericInput("window", "Window", 12,
+               min = 3, max = 36, step = 1))
+)
+
+actionButton("go", "Submit")
+```
+
+
+```{r, include=FALSE}
+
+symbols <- eventReactive(input$go, {
+  
+  symbols <- c(input$stock1,
+             input$stock2,
+             input$stock3,
+             input$stock4,
+             input$stock5)
+  
+})
+
+asset_returns <- eventReactive(input$go, {
+  
+  symbols <- symbols()
+  
+  prices <- symbols %>%
+    tq_get(get = "stock.prices",
+           from = input$date)
+  
+  asset_returns <- prices %>%
+  group_by(symbol) %>%
+  tq_transmute(adjusted,
+               periodReturn,
+               period = "monthly",
+               type = "log",
+               col_rename = "Ra")
+  
+})
+
+
+portfolio_returns <- eventReactive(input$go, {
+  
+  asset_returns <- asset_returns()
+  
+  wts <- c(input$w1/100,
+           input$w2/100,
+           input$w3/100,
+           input$w4/100,
+           input$w5/100)
+  
+  portfolio_returns <- asset_returns %>%
+    tq_portfolio(assets_col = symbol,
+                 returns_col = Ra,
+                 weights = wts,
+                 col_rename = "Ra",
+                 rebalance_on = "months")
+})
+
+portfolio_rolling_stdev <- eventReactive(input$go, {
+  
+  portfolio_returns = portfolio_returns()
+  
+  window <- input$window
+  
+  portfolio_rolling_stdev <- portfolio_returns %>%
+    tq_mutate(
+      mutate_fun = rollapply,
+      width = window,
+      FUN = sd,
+      col_rename = "rolling_sd"
+    ) %>%
+    select(date, rolling_sd) %>%
+    drop_na()
+  
+})
+```
+
+Row
+-------------------------------------
+   
+### Portfolio Rolling Volatility
+
+```{r, echo=FALSE}
+renderHighchart({
+  
+  portfolio_rolling_stdev_xts <- portfolio_rolling_stdev() %>%
+    tk_xts()
+  
+  highchart(type = "stock") %>%
+  hc_title(text = "Portfolio Rolling Standard Deviation") %>%
+  hc_add_series(portfolio_rolling_stdev_xts,
+                name = "Portfolio",
+                color = "#7cb5ec") %>%
+  hc_add_theme(hc_theme_flat()) %>%
+  hc_yAxis(labels = list(format = "{value}%"),
+           opposite = FALSE) %>%
+  hc_navigator(enabled = FALSE) %>%
+  hc_scrollbar(enabled = FALSE) %>%
+  hc_exporting(enabled = TRUE) %>%
+  hc_legend(enabled = TRUE) %>%
+  hc_tooltip(pointFormat = "Standard Deviation: {point.y}")
+})
+```   
+
+Row {.tabset}
+-------------------------------------
+
+### Return Anomalies
+
+```{r, echo=FALSE}
+renderHighchart({
+  
+  portfolio_returns <- portfolio_returns()
+
+  portfolio_stdev <- portfolio_returns %>%
+    tq_performance(Ra = Ra,
+                   Rb = NULL,
+                   performance_fun = table.Stats) %>%
+    select(Stdev)
+  
+  portfolio_mean <- portfolio_returns %>%
+    summarise(expected_return = mean(Ra)) %>%
+    mutate(symbol = "Portfolio")
+  
+  portfolio_groups <- portfolio_returns %>%
+    mutate(group = ifelse(
+      Ra > (portfolio_mean$expected_return + portfolio_stdev$Stdev) | (Ra < (portfolio_mean$expected_return - portfolio_stdev$Stdev)),
+                        "Outlier",
+                        "Normal")
+      ) %>%
+  mutate(color = case_when(
+    group == "Outlier" ~ "#f45b5b",
+    group == "Normal" ~ "#7cb5ec"
+  ))
+  
+  hchart(portfolio_groups, "scatter", hcaes(x = date, y = Ra, group = group,
+                                            color = color)) %>%
+    hc_title(text = "Portfolio Monthly Return Anomalies") %>%
+    hc_xAxis(title = list(text = "")) %>%
+    hc_yAxis(title = list(text = ""),
+               plotLines = list(
+                 list(
+                   dashStyle = "Dash",
+                   color = "#999999",
+                   width = 1.5,
+                   value = portfolio_mean$expected_return + portfolio_stdev$Stdev,
+                   zIndex = 1),
+                  list(
+                   dashStyle = "Dash",
+                   color = "#999999",
+                   width = 1.5,
+                   value = portfolio_mean$expected_return - portfolio_stdev$Stdev,
+                   zIndex = 1)
+                 )
+             ) %>%
+    hc_add_theme(hc_theme_flat()) %>%
+    hc_navigator(enabled = FALSE) %>%
+    hc_scrollbar(enabled = FALSE) %>%
+    hc_exporting(enabled = TRUE) %>%
+    hc_legend(enabled = FALSE) %>%
+    hc_tooltip(pointFormat = "x: {point.x:%b \'%y} <br> y: {point.y}")
+})
+```   
+
+### Risk Comparison
+
+```{r, echo=FALSE}
+renderHighchart({
+
+  symbols <- symbols()
+  
+  asset_returns <- asset_returns()
+    
+  portfolio_returns <- portfolio_returns()
+
+  asset_stdev <- asset_returns %>%
+    tq_performance(Ra = Ra,
+                   Rb = NULL,
+                   performance_fun = table.Stats) %>%
+    select(Stdev)
+  
+  portfolio_stdev <- portfolio_returns %>%
+    tq_performance(Ra = Ra,
+                   Rb = NULL,
+                   performance_fun = table.Stats) %>%
+    select(Stdev)
+
+  colors <- tibble(
+    symbol = append(symbols, "Portfolio"),
+    hex = c("#434348", "#90ed7d", "#f7a35c", "#8085e9", "#f15c80", "#7cb5ec")
+  ) %>%
+    arrange(symbol)
+  
+  stdev_combined <- portfolio_stdev %>%
+    mutate(symbol = "Portfolio") %>%
+    bind_rows(asset_stdev) %>%
+    arrange(desc(Stdev)) %>%
+    inner_join(colors)
+  
+  hchart(stdev_combined, "bar", hcaes(x = symbol, y = Stdev, color = hex)) %>%
+    hc_title(text = "Asset and Portfolio Standard Deviation Comparison") %>%
+    hc_xAxis(title = list(text = "")) %>%
+    hc_yAxis(title = list(text = "Monthly Return Standard Deviation")) %>%
+    hc_add_theme(hc_theme_flat()) %>%
+    hc_navigator(enabled = FALSE) %>%
+    hc_scrollbar(enabled = FALSE) %>%
+    hc_exporting(enabled = TRUE) %>%
+    hc_legend(enabled = FALSE) %>%
+    hc_tooltip(pointFormat = "Stdev: {point.y}")
+})
+```   
+
+### Return vs Risk
+
+```{r, echo=FALSE}
+renderHighchart({
+  
+  symbols <- symbols()
+
+  asset_returns <- asset_returns()
+    
+  portfolio_returns <- portfolio_returns()
+
+  asset_stdev <- asset_returns %>%
+    tq_performance(Ra = Ra,
+                   Rb = NULL,
+                   performance_fun = table.Stats) %>%
+    select(Stdev)
+  
+  portfolio_stdev <- portfolio_returns %>%
+    tq_performance(Ra = Ra,
+                   Rb = NULL,
+                   performance_fun = table.Stats) %>%
+    select(Stdev)
+
+  colors <- tibble(
+    symbol = append(symbols, "Portfolio"),
+    hex = c("#434348", "#90ed7d", "#f7a35c", "#8085e9", "#f15c80", "#7cb5ec")
+  ) %>%
+    arrange(symbol)
+  
+  stdev_combined <- portfolio_stdev %>%
+    mutate(symbol = "Portfolio") %>%
+    bind_rows(asset_stdev) %>%
+    arrange(desc(Stdev)) %>%
+    inner_join(colors)
+  
+  portfolio_mean <- portfolio_returns %>%
+    summarise(expected_return = mean(Ra)) %>%
+    mutate(symbol = "Portfolio")
+
+  mean_returns <- asset_returns %>%
+    group_by(symbol) %>%
+    summarise(expected_return = mean(Ra)) %>%
+    bind_rows(portfolio_mean)
+
+  mean_stdev_combined <- stdev_combined %>%
+    inner_join(mean_returns, by = "symbol")
+  
+  hchart(mean_stdev_combined, "scatter", hcaes(x = Stdev,
+                                               y = expected_return,
+                                               color = hex,
+                                               group = symbol)) %>%
+    hc_title(text = "Expected Monthly Returns versus Risk") %>%
+    hc_xAxis(title = list(text ="Monthly Return Standard Deviation")) %>%
+    hc_yAxis(title = list(text = "Expected Monthly Returns")) %>%
+    hc_add_theme(hc_theme_flat()) %>%
+    hc_navigator(enabled = FALSE) %>%
+    hc_scrollbar(enabled = FALSE) %>%
+    hc_exporting(enabled = TRUE) %>%
+    hc_legend(enabled = TRUE) %>%
+    hc_colors(colors$hex)
+})
+```  
