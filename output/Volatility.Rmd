@@ -6,12 +6,6 @@ output:
     orientation: rows
 ---
 
-<style>
- .section.sidebar {
-    overflow: hidden;
- }
-</style>
-
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
@@ -34,15 +28,15 @@ Inputs {.sidebar}
 
 fluidRow(
   column(6,
-  textInput("stock1", "Stock 1", "SPY")),
+  textInput("stock1", "Stock 1", "AAPL")),
   column(5,
-  numericInput("w1", "Portf. %", 40,
+  numericInput("w1", "Portf. %", 15,
                min = 1, max = 100))
 )
 
 fluidRow(
   column(6,
-  textInput("stock2", "Stock 2", "XLF")),
+  textInput("stock2", "Stock 2", "MSFT")),
   column(5,
   numericInput("w2", "Portf. %", 15,
                min = 1, max = 100))
@@ -50,25 +44,65 @@ fluidRow(
 
 fluidRow(
   column(6,
-  textInput("stock3", "Stock 3", "XLE")),
+  textInput("stock3", "Stock 3", "GOOG")),
   column(5,
-  numericInput("w3", "Portf. %", 15,
+  numericInput("w3", "Portf. %", 7.5,
                min = 1, max = 100))
 )
 
 fluidRow(
   column(6,
-  textInput("stock4", "Stock 4", "XLK")),
+  textInput("stock4", "Stock 4", "GOOGL")),
   column(5,
-  numericInput("w4", "Portf. %", 15,
+  numericInput("w4", "Portf. %", 7.5,
                min = 1, max = 100))
 )
 
 fluidRow(
   column(6,
-  textInput("stock5", "Stock 5", "XLV")),
+  textInput("stock5", "Stock 5", "AMZN")),
   column(5,
   numericInput("w5", "Portf. %", 15,
+               min = 1, max = 100))
+)
+
+fluidRow(
+  column(6,
+  textInput("stock6", "Stock 6", "TSLA")),
+  column(5,
+  numericInput("w6", "Portf. %", 15,
+               min = 1, max = 100))
+)
+
+fluidRow(
+  column(6,
+  textInput("stock7", "Stock 7", "FB")),
+  column(5,
+  numericInput("w7", "Portf. %", 10,
+               min = 1, max = 100))
+)
+
+fluidRow(
+  column(6,
+  textInput("stock8", "Stock 8", "BRK")),
+  column(5,
+  numericInput("w8", "Portf. %", 5,
+               min = 1, max = 100))
+)
+
+fluidRow(
+  column(6,
+  textInput("stock9", "Stock 9", "NVDA")),
+  column(5,
+  numericInput("w9", "Portf. %", 5,
+               min = 1, max = 100))
+)
+
+fluidRow(
+  column(6,
+  textInput("stock10", "Stock 10", "JPM")),
+  column(5,
+  numericInput("w10", "Portf. %", 5,
                min = 1, max = 100))
 )
 
@@ -76,9 +110,10 @@ fluidRow(
   column(7,
   dateInput("date",
             "Starting Date",
-            "2016-01-01",
+            "2018-01-01",
             format = "yyyy-mm-dd"))
 )
+
 
 fluidRow(
   column(5,
@@ -98,7 +133,12 @@ symbols <- eventReactive(input$go, {
              input$stock2,
              input$stock3,
              input$stock4,
-             input$stock5)
+             input$stock5,
+             input$stock6,
+             input$stock7,
+             input$stock8,
+             input$stock9,
+             input$stock10)
   
 })
 
@@ -129,7 +169,12 @@ portfolio_returns <- eventReactive(input$go, {
            input$w2/100,
            input$w3/100,
            input$w4/100,
-           input$w5/100)
+           input$w5/100,
+           input$w6/100,
+           input$w7/100,
+           input$w8/100,
+           input$w9/100,
+           input$w10/100)
   
   portfolio_returns <- asset_returns %>%
     tq_portfolio(assets_col = symbol,
@@ -270,7 +315,8 @@ renderHighchart({
 
   colors <- tibble(
     symbol = append(symbols, "Portfolio"),
-    hex = c("#434348", "#90ed7d", "#f7a35c", "#8085e9", "#f15c80", "#7cb5ec")
+    hex = c("#434348", "#90ed7d", "#f7a35c", "#8085e9", "#f15c80", "#7cb5ec",
+            "#e4d354", "#2b908f", "#f45b5b", "#91e8e1", "#2f7ed8")
   ) %>%
     arrange(symbol)
   
@@ -318,7 +364,8 @@ renderHighchart({
 
   colors <- tibble(
     symbol = append(symbols, "Portfolio"),
-    hex = c("#434348", "#90ed7d", "#f7a35c", "#8085e9", "#f15c80", "#7cb5ec")
+    hex = c("#434348", "#90ed7d", "#f7a35c", "#8085e9", "#f15c80", "#7cb5ec",
+            "#e4d354", "#2b908f", "#f45b5b", "#91e8e1", "#2f7ed8")
   ) %>%
     arrange(symbol)
   
