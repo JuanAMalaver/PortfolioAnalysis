@@ -91,7 +91,7 @@ fluidRow(
 
 fluidRow(
   column(6,
-  textInput("stock8", "Stock 8", "BRK")),
+  textInput("stock8", "Stock 8", "PYPL")),
   column(5,
   numericInput("w8", "Portf. %", 5,
                min = 1, max = 100))
@@ -107,7 +107,7 @@ fluidRow(
 
 fluidRow(
   column(6,
-  textInput("stock10", "Stock 10", "JPM")),
+  textInput("stock10", "Stock 10", "NFLX")),
   column(5,
   numericInput("w10", "Portf. %", 5,
                min = 1, max = 100))
@@ -158,8 +158,7 @@ asset_returns <- eventReactive(input$go, {
   
   prices <- symbols %>%
   tq_get(get = "stock.prices",
-         from = "2018-01-01") %>%
-  drop_na()
+         from = "2018-01-01")
      
   
   asset_returns <- prices %>%
@@ -208,7 +207,6 @@ renderHighchart({
   
   asset_returns_xts <- asset_returns() %>%
     pivot_wider(names_from = symbol, values_from = returns) %>%
-    drop_na() %>%
     tk_xts()
   
   portfolio_returns_xts <- portfolio_returns() %>%

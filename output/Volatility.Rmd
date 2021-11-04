@@ -84,7 +84,7 @@ fluidRow(
 
 fluidRow(
   column(6,
-  textInput("stock8", "Stock 8", "BRK")),
+  textInput("stock8", "Stock 8", "PYPL")),
   column(5,
   numericInput("w8", "Portf. %", 5,
                min = 1, max = 100))
@@ -100,11 +100,12 @@ fluidRow(
 
 fluidRow(
   column(6,
-  textInput("stock10", "Stock 10", "JPM")),
+  textInput("stock10", "Stock 10", "NFLX")),
   column(5,
   numericInput("w10", "Portf. %", 5,
                min = 1, max = 100))
 )
+
 
 fluidRow(
   column(7,
