@@ -4,7 +4,14 @@ runtime: shiny
 output: 
   flexdashboard::flex_dashboard:
     orientation: rows
+    theme: bootstrap
 ---
+
+<style>
+ .section.sidebar {
+    overflow-x: hidden;
+ }
+</style>
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -203,11 +210,11 @@ portfolio_rolling_stdev <- eventReactive(input$go, {
   
 })
 ```
-
+  
 Row
 -------------------------------------
    
-### Portfolio Rolling Volatility
+### Historical Volatility
 
 ```{r, echo=FALSE}
 renderHighchart({
@@ -216,18 +223,20 @@ renderHighchart({
     tk_xts()
   
   highchart(type = "stock") %>%
-  hc_title(text = "Portfolio Rolling Standard Deviation") %>%
+  hc_title(text = "Portfolio Returns Rolling Standard Deviation") %>%
   hc_add_series(portfolio_rolling_stdev_xts,
-                name = "Portfolio",
+                name = "Rebalanced Portfolio",
                 color = "#2f7ed8") %>%
   hc_add_theme(hc_theme_flat()) %>%
-  hc_yAxis(labels = list(format = "{value}%"),
+  hc_yAxis(labels = list(format = "{value}"),
+           title = list(text = "Return Standard Deviation"),
            opposite = FALSE) %>%
   hc_navigator(enabled = FALSE) %>%
   hc_scrollbar(enabled = FALSE) %>%
   hc_exporting(enabled = TRUE) %>%
   hc_legend(enabled = TRUE) %>%
-  hc_tooltip(pointFormat = "Standard Deviation: {point.y}")
+  hc_tooltip(pointFormat = "Standard Deviation: {point.y}",
+             valueDecimals = 3)
 })
 ```   
 
@@ -264,9 +273,10 @@ renderHighchart({
   
   hchart(portfolio_groups, "scatter", hcaes(x = date, y = Ra, group = group,
                                             color = color)) %>%
-    hc_title(text = "Portfolio Monthly Return Anomalies") %>%
+    hc_title(text = "Portfolio Return Anomalies") %>%
     hc_xAxis(title = list(text = "")) %>%
-    hc_yAxis(title = list(text = ""),
+    hc_yAxis(labels = list(format = "{value}%"),
+             title = list(text = "Monthly Log Returns"),
                plotLines = list(
                  list(
                    dashStyle = "Dash",
@@ -287,7 +297,8 @@ renderHighchart({
     hc_scrollbar(enabled = FALSE) %>%
     hc_exporting(enabled = TRUE) %>%
     hc_legend(enabled = FALSE) %>%
-    hc_tooltip(pointFormat = "x: {point.x:%b \'%y} <br> y: {point.y}")
+    hc_tooltip(pointFormat = "Date: {point.x:%b \'%y} <br> Return: {point.y}%",
+               valueDecimals = 3)
 })
 ```   
 
@@ -328,7 +339,7 @@ renderHighchart({
     inner_join(colors)
   
   hchart(stdev_combined, "bar", hcaes(x = symbol, y = Stdev, color = hex)) %>%
-    hc_title(text = "Asset and Portfolio Standard Deviation Comparison") %>%
+    hc_title(text = "Asset and Portfolio Standard Deviations") %>%
     hc_xAxis(title = list(text = "")) %>%
     hc_yAxis(title = list(text = "Monthly Return Standard Deviation")) %>%
     hc_add_theme(hc_theme_flat()) %>%
@@ -336,7 +347,8 @@ renderHighchart({
     hc_scrollbar(enabled = FALSE) %>%
     hc_exporting(enabled = TRUE) %>%
     hc_legend(enabled = FALSE) %>%
-    hc_tooltip(pointFormat = "Stdev: {point.y}")
+    hc_tooltip(pointFormat = "Standard Deviation: {point.y}",
+               valueDecimals = 3)
 })
 ```   
 
@@ -392,14 +404,17 @@ renderHighchart({
                                                y = expected_return,
                                                color = hex,
                                                group = symbol)) %>%
-    hc_title(text = "Expected Monthly Returns versus Risk") %>%
+    hc_title(text = "Expected Monthly Returns against Risk") %>%
     hc_xAxis(title = list(text ="Monthly Return Standard Deviation")) %>%
-    hc_yAxis(title = list(text = "Expected Monthly Returns")) %>%
+    hc_yAxis(title = list(text = "Expected Monthly Returns"),
+             labels = list(format = "{value}%")) %>%
     hc_add_theme(hc_theme_flat()) %>%
     hc_navigator(enabled = FALSE) %>%
     hc_scrollbar(enabled = FALSE) %>%
     hc_exporting(enabled = TRUE) %>%
     hc_legend(enabled = TRUE) %>%
-    hc_colors(colors$hex)
+    hc_colors(colors$hex) %>%
+    hc_tooltip(pointFormat = "Standard Deviation: {point.x} <br> Expected Return: {point.y}%",
+               valueDecimals = 3)
 })
 ```  

@@ -4,13 +4,14 @@ runtime: shiny
 output: 
   flexdashboard::flex_dashboard:
     orientation: rows
+    theme: bootstrap
 ---
 
-<!-- <style> -->
-<!--  .section.sidebar { -->
-<!--     overflow: hidden; -->
-<!--  } -->
-<!-- </style> -->
+<style>
+ .section.sidebar {
+    overflow-x: hidden;
+ }
+</style>
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
