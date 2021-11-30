@@ -23,7 +23,7 @@ library(tidyquant)
 library(timetk)
 ```
 
-Skewness
+Kurtosis
 =====================================
 
 Inputs {.sidebar}

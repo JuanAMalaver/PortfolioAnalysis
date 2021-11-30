@@ -1,0 +1,539 @@
+---
+title: "Portfolio Analysis"
+runtime: shiny
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    theme: bootstrap
+---
+
+<style>
+ .section.sidebar {
+    overflow-x: hidden;
+ }
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# loading libraries
+library(shiny)
+library(flexdashboard)
+library(tidyverse)
+library(highcharter)
+library(tidyquant)
+library(timetk)
+```
+
+Sharpe Ratio
+=====================================
+
+Inputs {.sidebar}
+-------------------------------------
+
+### Asset Parameters
+
+```{r sidebar, echo=FALSE}
+
+fluidRow(
+  column(6,
+  textInput("stock1", "Stock 1", "AAPL")),
+  column(5,
+  numericInput("w1", "Portf. %", 15,
+               min = 1, max = 100))
+)
+
+fluidRow(
+  column(6,
+  textInput("stock2", "Stock 2", "MSFT")),
+  column(5,
+  numericInput("w2", "Portf. %", 15,
+               min = 1, max = 100))
+)
+
+fluidRow(
+  column(6,
+  textInput("stock3", "Stock 3", "GOOG")),
+  column(5,
+  numericInput("w3", "Portf. %", 7.5,
+               min = 1, max = 100))
+)
+
+fluidRow(
+  column(6,
+  textInput("stock4", "Stock 4", "GOOGL")),
+  column(5,
+  numericInput("w4", "Portf. %", 7.5,
+               min = 1, max = 100))
+)
+
+fluidRow(
+  column(6,
+  textInput("stock5", "Stock 5", "AMZN")),
+  column(5,
+  numericInput("w5", "Portf. %", 15,
+               min = 1, max = 100))
+)
+
+fluidRow(
+  column(6,
+  textInput("stock6", "Stock 6", "TSLA")),
+  column(5,
+  numericInput("w6", "Portf. %", 15,
+               min = 1, max = 100))
+)
+
+fluidRow(
+  column(6,
+  textInput("stock7", "Stock 7", "FB")),
+  column(5,
+  numericInput("w7", "Portf. %", 10,
+               min = 1, max = 100))
+)
+
+fluidRow(
+  column(6,
+  textInput("stock8", "Stock 8", "PYPL")),
+  column(5,
+  numericInput("w8", "Portf. %", 5,
+               min = 1, max = 100))
+)
+
+fluidRow(
+  column(6,
+  textInput("stock9", "Stock 9", "NVDA")),
+  column(5,
+  numericInput("w9", "Portf. %", 5,
+               min = 1, max = 100))
+)
+
+fluidRow(
+  column(6,
+  textInput("stock10", "Stock 10", "NFLX")),
+  column(5,
+  numericInput("w10", "Portf. %", 5,
+               min = 1, max = 100))
+)
+
+
+fluidRow(
+  column(7,
+  dateInput("date",
+            "Starting Date",
+            "2018-01-01",
+            format = "yyyy-mm-dd"))
+)
+
+
+fluidRow(
+  column(5,
+  numericInput("rfr", "RFR%", 0.03,
+               min = 0, max = 1, step = 0.01)),
+  column(5,
+  numericInput("window", "Window", 12,
+               min = 3, max = 36, step = 1))
+)
+
+actionButton("go", "Submit")
+```
+
+
+```{r, include=FALSE}
+
+symbols <- eventReactive(input$go, {
+  
+  symbols <- c(input$stock1,
+             input$stock2,
+             input$stock3,
+             input$stock4,
+             input$stock5,
+             input$stock6,
+             input$stock7,
+             input$stock8,
+             input$stock9,
+             input$stock10)
+  
+})
+
+window <- eventReactive(input$go, {input$window})
+
+rfr <- eventReactive(input$go, {input$rfr/100})
+
+asset_returns <- eventReactive(input$go, {
+  
+  symbols <- symbols()
+  
+  prices <- symbols %>%
+    tq_get(get = "stock.prices",
+           from = input$date)
+  
+  asset_returns <- prices %>%
+  group_by(symbol) %>%
+  tq_transmute(adjusted,
+               periodReturn,
+               period = "monthly",
+               type = "log",
+               col_rename = "Ra")
+  
+})
+
+
+portfolio_returns <- eventReactive(input$go, {
+  
+  asset_returns <- asset_returns()
+  
+  wts <- c(input$w1/100,
+           input$w2/100,
+           input$w3/100,
+           input$w4/100,
+           input$w5/100,
+           input$w6/100,
+           input$w7/100,
+           input$w8/100,
+           input$w9/100,
+           input$w10/100)
+  
+  portfolio_returns <- asset_returns %>%
+    tq_portfolio(assets_col = symbol,
+                 returns_col = Ra,
+                 weights = wts,
+                 col_rename = "Ra",
+                 rebalance_on = "months")
+})
+
+portfolio_rolling_sharpe <- eventReactive(input$go, {
+  
+  portfolio_returns <- portfolio_returns()
+  
+  window <- window()
+  
+  rfr <- rfr()
+  
+  ## custom sharpe ratio function
+  sharpe_roll <- function(df) {
+    SharpeRatio(
+      df,
+      Rf = rfr,
+      FUN = "StdDev"
+    )
+  }
+  
+  portfolio_rolling_sharpe <- portfolio_returns %>%
+    tq_mutate(
+      select = Ra,
+      mutate_fun = rollapply,
+      width = window,
+      align = "right",
+      FUN = sharpe_roll,
+      col_rename = "rolling_sharpe"
+    ) %>%
+    select(date, rolling_sharpe) %>%
+    drop_na()
+})
+
+market_rolling_sharpe <- eventReactive(input$go, {
+  
+  market_prices <- "SPY" %>%
+    tq_get(get = "stock.prices",
+           from = input$date)
+  
+  market_returns <- market_prices %>%
+  tq_transmute(adjusted,
+               periodReturn,
+               period = "monthly",
+               type = "log",
+               col_rename = "Ra")
+  
+  window <- window()
+  
+  rfr <- rfr()
+  
+  ## custom sharpe ratio function
+  sharpe_roll <- function(df) {
+    SharpeRatio(
+      df,
+      Rf = rfr,
+      FUN = "StdDev"
+    )
+  }
+  
+  market_rolling_sharpe <- market_returns %>%
+    tq_mutate(
+      select = Ra,
+      mutate_fun = rollapply,
+      width = window,
+      align = "right",
+      FUN = sharpe_roll,
+      col_rename = "rolling_sharpe"
+    ) %>%
+    select(date, rolling_sharpe) %>%
+    drop_na()
+})
+```
+
+
+Row {data-height=150}
+-------------------------------------
+
+### Portoflio Sharpe Ratio
+
+```{r, echo=FALSE}
+renderValueBox({
+  
+  portfolio_returns <- portfolio_returns()
+  
+  rfr <- rfr()
+  
+  portfolio_sharpe <- portfolio_returns %>%
+    tq_performance(Ra = Ra,
+                   performance_fun = SharpeRatio,
+                   Rf = rfr,
+                   FUN = "StdDev") %>%
+    rename(sharpe_ratio = 1)
+  
+  valueBox(value = round(portfolio_sharpe[[1]], 4),
+           caption = "Portfolio Sharpe Ratio",
+           color = "primary")
+  
+})
+```
+
+### Market Sharpe Ratio
+
+```{r, echo=FALSE}
+renderValueBox({
+  
+  rfr <- rfr()
+  
+  market_prices <- "SPY" %>%
+    tq_get(get = "stock.prices",
+           from = "2018-01-01")
+  
+  market_returns <- market_prices %>%
+    tq_transmute(adjusted,
+                 periodReturn,
+                 period = "monthly",
+                 type = "log",
+                 col_rename = "Ra")
+  
+  market_sharpe <- market_returns %>%
+    tq_performance(Ra = Ra,
+                   performance_fun = SharpeRatio,
+                   Rf = rfr,
+                   FUN = "StdDev") %>%
+    rename(sharpe_ratio = 1)
+  
+  valueBox(value = round(market_sharpe[[1]], 4),
+           caption = "Market Sharpe Ratio",
+           color = "primary")
+  
+})
+```
+
+
+Row
+-------------------------------------
+   
+### Portfolio Rolling Sharpe Ratio
+
+```{r, echo=FALSE}
+renderHighchart({
+  
+  ## converting to xts object
+  portfolio_rolling_sharpe_xts <- portfolio_rolling_sharpe() %>%
+    tk_xts()
+  
+  ## converting to xts object
+  market_rolling_sharpe_xts <- market_rolling_sharpe() %>%
+    tk_xts()
+  
+  ## plotting rolling sharpe ratio
+  highchart(type = "stock") %>%
+    hc_title(text = "Portfolio Rolling Sharpe Ratio") %>%
+    hc_add_series(portfolio_rolling_sharpe_xts,
+                  name = "Rebalanced Portfolio",
+                  color = "#2f7ed8") %>%
+    hc_add_series(market_rolling_sharpe_xts,
+                  name = "Market",
+                  color = "green") %>%
+    hc_add_theme(hc_theme_flat()) %>%
+    hc_yAxis(labels = list(format = "{value}"),
+             opposite = FALSE) %>%
+    hc_navigator(enabled = FALSE) %>%
+    hc_scrollbar(enabled = FALSE) %>%
+    hc_exporting(enabled = TRUE) %>%
+    hc_legend(enabled = TRUE) %>%
+    hc_tooltip(pointFormat = "Sharpe Ratio: {point.y}")
+  
+})
+```   
+
+Row
+-------------------------------------
+
+### Returns Around RFR
+
+```{r, echo=FALSE}
+renderHighchart({
+  
+  symbols <- symbols()
+  
+  asset_returns <- asset_returns()
+    
+  portfolio_returns <- portfolio_returns()
+  
+  rfr <- rfr()
+  
+  ## generating groups for above and below risk-free rate
+  portfolio_groups <- portfolio_returns %>%
+    mutate(ratio = mean(Ra - rfr)/sd(Ra - rfr)) %>%
+    mutate(group = ifelse(
+      Ra > rfr,
+      "Above",
+      "Below")
+    ) %>%
+    mutate(color = case_when(
+      group == "Above" ~ "#90ed7d",
+      group == "Below" ~ "#f45b5b"
+    ))
+  
+  ## plotting returns around risk-free rate
+  hchart(portfolio_groups, "scatter", hcaes(x = date, y = Ra, group = group,
+                                            color = color)) %>%
+    hc_title(text = "Portfolio Returns Around Risk Free Rate") %>%
+    hc_xAxis(title = list(text = "")) %>%
+    hc_yAxis(labels = list(format = "{value}%"),
+             title = list(text = "Monthly Log Returns"),
+             plotLines = list(
+               list(
+                 dashStyle = "Dot",
+                 color = "#999999",
+                 width = 2,
+                 value = rfr,
+                 zIndex = 1)
+             )
+    ) %>%
+    hc_add_theme(hc_theme_flat()) %>%
+    hc_navigator(enabled = FALSE) %>%
+    hc_scrollbar(enabled = FALSE) %>%
+    hc_exporting(enabled = TRUE) %>%
+    hc_legend(enabled = FALSE) %>%
+    hc_tooltip(pointFormat = "Date: {point.x:%b \'%y} <br> Return: {point.y}%",
+               valueDecimals = 3)
+})
+```   
+
+### Return Density
+
+```{r, echo=FALSE}
+renderHighchart({
+
+  portfolio_returns <- portfolio_returns()
+  
+  rfr <- rfr()
+  
+  ## plotting portfolio return density with risk-free rate
+  hchart(density(portfolio_returns$Ra), "line", name = "Rebalanced Portfolio", color = "#2f7ed8") %>%
+    hc_title(text = "Portfolio Return Density") %>%
+    hc_xAxis(title = list(text = "Monthly Log Returns"),
+             plotLines = list(
+               list(
+                 label = list(text = "Risk Free Rate"),
+                 color = "#FF0000",
+                 width = 2,
+                 dashStyle = "Dot",
+                 value = rfr,
+                 zIndex = 1
+               )
+             )
+    ) %>%
+    hc_yAxis(title = list(text = "Density")) %>%
+    hc_add_theme(hc_theme_flat()) %>%
+    hc_navigator(enabled = FALSE) %>%
+    hc_scrollbar(enabled = FALSE) %>%
+    hc_exporting(enabled = TRUE) %>%
+    hc_legend(enabled = FALSE)
+  
+})
+```   
+
+### Standard Deviation vs Sharpe Ratio
+
+```{r, echo=FALSE}
+renderHighchart({
+  
+  symbols <- symbols()
+
+  asset_returns <- asset_returns()
+  
+  portfolio_returns <- portfolio_returns()
+  
+  rfr <- rfr()
+  
+  ## calculating sharpe ratio for underlying assets
+  asset_sharpe <- asset_returns %>%
+    tq_performance(Ra = Ra,
+                   performance_fun = SharpeRatio,
+                   Rf = rfr,
+                   FUN = "StdDev") %>%
+    rename(sharpe_ratio = 2)
+  
+  ## calculating sharpe ratio for rebalanced portfolio
+  portfolio_sharpe <- portfolio_returns %>%
+    tq_performance(Ra = Ra,
+                   performance_fun = SharpeRatio,
+                   Rf = rfr,
+                   FUN = "StdDev") %>%
+  rename(sharpe_ratio = 1)
+  
+
+  ## specifying color palette
+  colors <- tibble(
+    symbol = append(symbols, "Portfolio"),
+    hex = c("#434348", "#90ed7d", "#f7a35c", "#8085e9", "#f15c80", "#7cb5ec",
+            "#e4d354", "#2b908f", "#f45b5b", "#91e8e1", "#2f7ed8")
+  ) %>%
+    arrange(symbol)
+  
+  ## joining asset and portfolio sharpe ratios with colors
+  sharpe_combined <- portfolio_sharpe %>%
+    mutate(symbol = "Portfolio") %>%
+    bind_rows(asset_sharpe) %>%
+    arrange(desc(sharpe_ratio)) %>%
+    inner_join(colors)
+  
+  ## calculating portfolio return standard deviation
+  portfolio_stdev <- portfolio_returns %>%
+    summarise(std_dev = sd(Ra)) %>%
+    mutate(symbol = "Portfolio")
+  
+  ## calculating asset return standard deviation
+  stdev_combined <- asset_returns %>%
+    group_by(symbol) %>%
+    summarise(std_dev= sd(Ra)) %>%
+    bind_rows(portfolio_stdev)
+  
+  ## joining sharpe ratios with standard deviation
+  sharpe_stdev_combined <- sharpe_combined %>%
+    inner_join(stdev_combined, by = "symbol")
+  
+  ## plotting scatter of std dev vs sharpe ratio
+  hchart(sharpe_stdev_combined, "scatter", hcaes(x = std_dev,
+                                               y = sharpe_ratio,
+                                               color = hex,
+                                               group = symbol)) %>%
+    hc_title(text = "Sharpe Ratio vs Standard Deviation") %>%
+    hc_xAxis(title = list(text ="Monthly Return Standard Deviation")) %>%
+    hc_yAxis(title = list(text = "Sharpe Ratio")) %>%
+    hc_add_theme(hc_theme_flat()) %>%
+    hc_navigator(enabled = FALSE) %>%
+    hc_scrollbar(enabled = FALSE) %>%
+    hc_exporting(enabled = TRUE) %>%
+    hc_legend(enabled = TRUE) %>%
+    hc_colors(colors$hex) %>%
+    hc_tooltip(pointFormat = "Standard Deviation: {point.x} <br> Sharpe Ratio: {point.y}",
+               valueDecimals = 3)
+  
+})
+```
+
