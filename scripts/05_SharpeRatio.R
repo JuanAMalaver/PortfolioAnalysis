@@ -161,7 +161,7 @@ sharpe_stdev_combined <- sharpe_combined %>%
   inner_join(stdev_combined, by = "symbol")
 
 ## plotting scatter of std dev vs sharpe ratio
-hchart(sharpe_stdev_combined, "scatter", hcaes(x = std_dev,
+hchart(sharpe_stdev_combined, "scatter", hcaes(x = round(std_dev, 3),
                                              y = sharpe_ratio,
                                              color = hex,
                                              group = symbol)) %>%

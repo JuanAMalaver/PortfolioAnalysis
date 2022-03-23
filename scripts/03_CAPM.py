@@ -10,7 +10,7 @@ def get_capm(df):
   
   model = []
   
-  for t in ticker[:-1]
+  for t in ticker[:-1]:
   
     y = df['Daily Rtn', t].to_numpy()
     
